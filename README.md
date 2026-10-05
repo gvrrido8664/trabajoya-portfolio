@@ -27,6 +27,8 @@ powershell -NoProfile -File preparar-demo.ps1
 flutter pub get
 flutter run -d chrome --web-port 3000
 ```
+En Windows, si pub get pide Developer Mode y solo necesitas la web, ejecuta flutter config --no-enable-windows-desktop y repite pub get. Para volver a desarrollar escritorio, restaura flutter config --enable-windows-desktop. No fue necesario activar Developer Mode en esta revisión.
+
 Abre localhost:3000 y usa una cuenta sintética. La configuración copiada apunta a localhost:8000/api/v1. Los assets `.env.*` de Flutter contienen solo API_URL y campos públicos vacíos: nunca claves privadas.
 
 ## Comprobaciones independientes de la base
