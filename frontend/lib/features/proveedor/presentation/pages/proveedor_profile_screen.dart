@@ -1,0 +1,1887 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import 'package:trabajoya_app/features/auth/presentation/providers/auth_provider.dart';
+import 'package:trabajoya_app/features/contrataciones/presentation/providers/contrataciones_provider.dart';
+import 'package:trabajoya_app/features/servicios/presentation/providers/servicios_provider.dart';
+import 'package:trabajoya_app/features/pagos/presentation/widgets/bank_info_card.dart';
+import 'package:trabajoya_app/features/usuarios/presentation/providers/certificaciones_provider.dart';
+import 'package:trabajoya_app/features/resenas/data/datasources/resenas_remote_datasource.dart';
+import 'package:trabajoya_app/features/resenas/data/models/resena_model.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:trabajoya_app/shared/theme/tokens.dart';
+import 'package:trabajoya_app/app/theme.dart';
+import 'package:trabajoya_app/features/proveedor/presentation/widgets/pro_ui.dart';
+import 'package:trabajoya_app/shared/layout/breakpoints.dart';
+import 'package:trabajoya_app/shared/widgets/help_modal.dart';
+import 'package:trabajoya_app/shared/widgets/avatar_editor.dart';
+import 'package:trabajoya_app/shared/utils/unsaved_changes.dart';
+
+class PerfilProveedorScreen extends StatefulWidget {
+  const PerfilProveedorScreen({super.key});
+
+  @override
+  State<PerfilProveedorScreen> createState() => _PerfilProveedorScreenState();
+}
+
+class _PerfilProveedorScreenState extends State<PerfilProveedorScreen> {
+  final _resenasService = ResenasService();
+  List<Resena> _resenas = [];
+  bool _loadingResenas = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final uid = context.read<AuthProvider>().usuario?.id;
+      context.read<ServiciosProvider>().cargarServicios(proveedorId: uid);
+      context.read<ContratacionesProvider>().cargarContrataciones();
+      context.read<CertificacionesProvider>().loadMisCertificaciones();
+      _cargarResenas(uid);
+    });
+  }
+
+  Future<void> _cargarResenas(String? uid) async {
+    if (uid == null) return;
+    try {
+      final resenas = await _resenasService.getResenasUsuario(uid, limit: 20);
+      if (mounted) setState(() => _resenas = resenas);
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _loadingResenas = false);
+    }
+  }
+
+  void _mostrarEditarPerfil(BuildContext context, AuthProvider auth) {
+    showDialog(
+      context: context,
+      builder: (_) => _EditarPerfilDialog(auth: auth),
+    );
+  }
+
+  Widget _centered(Widget child) => Center(
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 1200),
+      child: child,
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final auth = context.watch<AuthProvider>();
+    final servProv = context.watch<ServiciosProvider>();
+    final contProv = context.watch<ContratacionesProvider>();
+
+    final user = auth.usuario;
+    final width = MediaQuery.of(context).size.width;
+
+    final isDesktop = Breakpoints.isDesktop(context);
+    final isTabletGrid = !Breakpoints.isMobile(context);
+
+    final userName = user != null
+        ? '${user.nombre} ${user.apellido}'.trim()
+        : 'Proveedor';
+    final userEmail = user?.email ?? '—';
+    final userFirstName = user?.nombre ?? '—';
+    final userLastName = user?.apellido ?? '—';
+    final userPhone = user?.telefono ?? 'No registrado';
+    final userRating = user?.avgRatingProveedor ?? 0.0;
+    final userReferidos = user?.referidosCount ?? 0;
+    final userRol = user?.isProveedor == true ? 'Proveedor' : 'Cliente';
+    final emailVerificado = user?.emailVerificado ?? false;
+    final telefonoActivo =
+        user?.telefono != null && (user?.telefono?.isNotEmpty ?? false);
+    final docEstado = user?.docEstado ?? 'none';
+    final serviciosActivos = servProv.servicios.where((s) => s.isActivo).length;
+    final contratacionesCount = contProv.contrataciones.length;
+
+    return ProScaffold(
+      showAppBar: false,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(Spacing.xl2),
+        child: _centered(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ── Cabecera ──
+                Text(
+                  'Mi perfil',
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: ProColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Gestiona tu información personal, servicios y preferencias de cuenta.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: ProColors.textSecondary,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: Spacing.xl2),
+
+                // ── Layout principal ──
+                Flex(
+                  direction: isDesktop ? Axis.horizontal : Axis.vertical,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ── Panel izquierdo ──
+                    SizedBox(
+                      width: isDesktop ? 340 : double.infinity,
+                      child: Column(
+                        children: [
+                          _ProfileSideCard(
+                            name: userName,
+                            rating: userRating,
+                            rol: userRol,
+                            serviciosCount: serviciosActivos,
+                            contratacionesCount: contratacionesCount,
+                            isVerified: docEstado == 'approved',
+                          ),
+                          const SizedBox(height: 12),
+                          // ── Ayuda ──
+                          ProButton(
+                            label: 'Ayuda y soporte',
+                            icon: Icons.help_outline,
+                            isOutline: true,
+                            onPressed: () => showHelpModal(context),
+                          ),
+                          const SizedBox(height: 8),
+                          // ── Cerrar sesión ──
+                          ProButton(
+                            label: 'Cerrar sesión',
+                            icon: Icons.logout,
+                            isOutline: true,
+                            isDanger: true,
+                            onPressed: () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (dialogCtx) => AlertDialog(
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(Radii.md),
+                                  ),
+                                  title: const Text(
+                                    'Cerrar sesión',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  content: const Text(
+                                    '¿Estás seguro que querés cerrar sesión?',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(dialogCtx, false),
+                                      child: const Text('Cancelar'),
+                                    ),
+                                    ProButton(
+                                      label: 'Cerrar sesión',
+                                      isDanger: true,
+                                      compact: true,
+                                      onPressed: () =>
+                                          Navigator.pop(dialogCtx, true),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirm == true && context.mounted) {
+                                await context.read<AuthProvider>().logout();
+                                if (context.mounted) context.go('/login');
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (isDesktop)
+                      const SizedBox(width: Spacing.xl)
+                    else
+                      const SizedBox(height: Spacing.xl2),
+
+                    // ── Panel derecho ──
+                    Expanded(
+                      flex: isDesktop ? 1 : 0,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _PersonalInfoCard(
+                            email: userEmail,
+                            firstName: userFirstName,
+                            lastName: userLastName,
+                            phone: userPhone,
+                            habilidades: user?.habilidades?.isNotEmpty == true
+                                ? user!.habilidades!
+                                : 'Sin especialidad',
+                            bio: user?.bio,
+                            rol: userRol,
+                            isTablet: isTabletGrid,
+                            onEditarPerfil: () =>
+                                _mostrarEditarPerfil(context, auth),
+                          ),
+                          const SizedBox(height: Spacing.xl),
+                          _ActivityMetricsCard(
+                            serviciosCount: serviciosActivos,
+                            contratacionesCount: contratacionesCount,
+                            referidosCount: userReferidos,
+                            isTablet: isTabletGrid,
+                          ),
+                          const SizedBox(height: Spacing.xl),
+                          _SecurityCard(
+                            emailVerificado: emailVerificado,
+                            telefonoActivo: telefonoActivo,
+                            docEstado: docEstado,
+                          ),
+                          const SizedBox(height: Spacing.xl),
+                          if (userRol == 'Proveedor') ...[
+                            _ReviewsCard(
+                              resenas: _resenas,
+                              loading: _loadingResenas,
+                            ),
+                            const SizedBox(height: Spacing.xl),
+                          ],
+                          if (userRol == 'Proveedor') ...[
+                            _CertificacionesCard(),
+                            const SizedBox(height: Spacing.xl),
+                          ],
+                          _SubscriptionCard(),
+                          const SizedBox(height: Spacing.xl),
+                          const BankInfoCard(),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+    );
+  }
+}
+
+// ─────────────────────────────── DIALOGS ────────────────────────────────────
+
+class _EditarPerfilDialog extends StatefulWidget {
+  final AuthProvider auth;
+  const _EditarPerfilDialog({required this.auth});
+
+  @override
+  State<_EditarPerfilDialog> createState() => _EditarPerfilDialogState();
+}
+
+class _EditarPerfilDialogState extends State<_EditarPerfilDialog> {
+  late final TextEditingController _nombre;
+  late final TextEditingController _apellido;
+  late final TextEditingController _telefono;
+  late final TextEditingController _bio;
+  late final TextEditingController _habilidades;
+  final _actualPassCtrl = TextEditingController();
+  final _nuevaPassCtrl = TextEditingController();
+  final _actualPassFocus = FocusNode();
+  final _nuevaPassFocus = FocusNode();
+  bool _loading = false;
+  bool _showPasswordSection = false;
+  bool _obscureActual = true;
+  bool _obscureNueva = true;
+  bool _dirty = false;
+  void _markDirty() => _dirty = true;
+
+  String _codigoPais = '+56';
+  static const _paises = [
+    {'code': '+56', 'flag': '🇨🇱', 'name': 'Chile'},
+    {'code': '+54', 'flag': '🇦🇷', 'name': 'Argentina'},
+    {'code': '+51', 'flag': '🇵🇪', 'name': 'Perú'},
+    {'code': '+57', 'flag': '🇨🇴', 'name': 'Colombia'},
+    {'code': '+52', 'flag': '🇲🇽', 'name': 'México'},
+    {'code': '+55', 'flag': '🇧🇷', 'name': 'Brasil'},
+    {'code': '+1', 'flag': '🇺🇸', 'name': 'EE.UU.'},
+    {'code': '+34', 'flag': '🇪🇸', 'name': 'España'},
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    final u = widget.auth.usuario;
+    _nombre = TextEditingController(text: u?.nombre ?? '');
+    _apellido = TextEditingController(text: u?.apellido ?? '');
+    _bio = TextEditingController(text: u?.bio ?? '');
+    _habilidades = TextEditingController(text: u?.habilidades ?? '');
+
+    final telefonoRaw = u?.telefono ?? '';
+    final codigoMatch = _paises.firstWhere(
+      (p) => telefonoRaw.startsWith(p['code']!),
+      orElse: () => _paises.first,
+    );
+    _codigoPais = codigoMatch['code']!;
+    final soloNumero = telefonoRaw.startsWith(_codigoPais)
+        ? telefonoRaw.substring(_codigoPais.length)
+        : telefonoRaw;
+    _telefono = TextEditingController(text: soloNumero);
+
+    for (final c in [_nombre, _apellido, _telefono, _bio, _habilidades, _nuevaPassCtrl]) {
+      c.addListener(_markDirty);
+    }
+  }
+
+  @override
+  void dispose() {
+    _nombre.dispose();
+    _apellido.dispose();
+    _telefono.dispose();
+    _bio.dispose();
+    _habilidades.dispose();
+    _actualPassCtrl.dispose();
+    _nuevaPassCtrl.dispose();
+    _actualPassFocus.dispose();
+    _nuevaPassFocus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _guardar() async {
+    if (_loading) return;
+    // Ni el backend ni este diálogo (usa TextField suelto, no Form) exigían
+    // nombre/apellido no vacíos -- se podía guardar un perfil en blanco.
+    if (_nombre.text.trim().isEmpty || _apellido.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nombre y apellido son obligatorios')),
+      );
+      return;
+    }
+    setState(() => _loading = true);
+
+    // 1. Guardar perfil
+    final telefonoCompleto = _telefono.text.trim().isEmpty
+        ? ''
+        : '$_codigoPais${_telefono.text.trim()}';
+    final okPerfil = await widget.auth.actualizarPerfilCompleto(
+      nombre: _nombre.text.trim(),
+      apellido: _apellido.text.trim(),
+      telefono: telefonoCompleto,
+      bio: _bio.text.trim(),
+      habilidades: _habilidades.text.trim(),
+    );
+
+    // 2. Cambiar contraseña si se llenaron los campos
+    bool okPass = true;
+    String? passError;
+    if (_actualPassCtrl.text.isNotEmpty && _nuevaPassCtrl.text.isNotEmpty) {
+      okPass = await widget.auth.changePassword(
+        _actualPassCtrl.text,
+        _nuevaPassCtrl.text,
+      );
+      if (!okPass) passError = widget.auth.error;
+    }
+
+    if (!mounted) return;
+    setState(() => _loading = false);
+    Navigator.pop(context);
+
+    String msg;
+    bool success;
+    if (okPerfil && okPass) {
+      msg = _actualPassCtrl.text.isNotEmpty
+          ? 'Perfil y contraseña actualizados.'
+          : 'Perfil actualizado.';
+      success = true;
+    } else if (!okPerfil) {
+      msg = widget.auth.error ?? 'Error al actualizar perfil.';
+      success = false;
+    } else {
+      msg = passError ?? 'Error al cambiar contraseña.';
+      success = false;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: success ? ProColors.success : ProColors.danger,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // 440 fijo desbordaba en pantallas angostas (<440+64 de insetPadding) --
+    // el campo Teléfono quedaba cortado a la mitad del último dígito.
+    final maxDialogWidth = MediaQuery.sizeOf(context).width - 64;
+    return PopScope(
+      canPop: !_dirty,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        if (await confirmDiscardChanges(context, hasChanges: _dirty) && context.mounted) {
+          Navigator.pop(context);
+        }
+      },
+      child: AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
+      title: const Text(
+        'Editar perfil',
+        style: TextStyle(fontWeight: FontWeight.bold),
+      ),
+      content: SizedBox(
+        width: maxDialogWidth < 440 ? maxDialogWidth : 440,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _field('Nombre', _nombre),
+              const SizedBox(height: 12),
+              _field('Apellido', _apellido),
+              const SizedBox(height: 12),
+              Builder(
+                builder: (context) {
+                  final codigoPaisField = SizedBox(
+                    width: 110,
+                    child: DropdownButtonFormField<String>(
+                      key: ValueKey(_codigoPais),
+                      initialValue: _codigoPais,
+                      icon: const Icon(
+                        Icons.keyboard_arrow_down,
+                        size: 16,
+                        color: ProColors.textSecondary,
+                      ),
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: ProColors.surface,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(Radii.md),
+                          borderSide: const BorderSide(color: ProColors.border),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(Radii.md),
+                          borderSide: const BorderSide(color: ProColors.border),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(Radii.md),
+                          borderSide: const BorderSide(
+                            color: ProColors.accent,
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
+                      items: _paises
+                          .map(
+                            (p) => DropdownMenuItem<String>(
+                              value: p['code'],
+                              child: Text(
+                                '${p['flag']} ${p['code']}',
+                                style: const TextStyle(
+                                  
+                                  fontWeight: FontWeight.w600,
+                                  color: ProColors.textPrimary,
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) setState(() => _codigoPais = v);
+                      },
+                    ),
+                  );
+                  final telefonoField = _field(
+                    'Teléfono',
+                    _telefono,
+                    keyboard: TextInputType.phone,
+                  );
+                  // Con el selector de código de país (110px) al lado, el
+                  // campo Teléfono se quedaba sin ancho suficiente para 9
+                  // dígitos en diálogos angostos (<340px) y el último dígito
+                  // se veía cortado. Se apila en vez de ir lado a lado.
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      if (constraints.maxWidth < 340) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            codigoPaisField,
+                            const SizedBox(height: 12),
+                            telefonoField,
+                          ],
+                        );
+                      }
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          codigoPaisField,
+                          const SizedBox(width: 10),
+                          Expanded(child: telefonoField),
+                        ],
+                      );
+                    },
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+              _field('Habilidades / especialidad', _habilidades),
+              const SizedBox(height: 12),
+              _field('Bio', _bio, maxLines: 3),
+
+              // ── Sección de cambiar contraseña (expandible) ──
+              const SizedBox(height: 8),
+              const Divider(),
+              InkWell(
+                onTap: () => setState(
+                  () => _showPasswordSection = !_showPasswordSection,
+                ),
+                borderRadius: BorderRadius.circular(Radii.sm),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.lock_outline,
+                        size: 18,
+                        color: ProColors.textSecondary,
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Cambiar contraseña',
+                          style: TextStyle(
+                            
+                            fontWeight: FontWeight.w600,
+                            color: ProColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        _showPasswordSection
+                            ? Icons.expand_less
+                            : Icons.expand_more,
+                        color: ProColors.textSecondary,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              AnimatedCrossFade(
+                duration: const Duration(milliseconds: 200),
+                crossFadeState: _showPasswordSection
+                    ? CrossFadeState.showSecond
+                    : CrossFadeState.showFirst,
+                firstChild: const SizedBox.shrink(),
+                secondChild: Column(
+                  children: [
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _actualPassCtrl,
+                      focusNode: _actualPassFocus,
+                      obscureText: _obscureActual,
+                      decoration: InputDecoration(
+                        labelText: 'Contraseña actual',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(Radii.md),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscureActual
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                            size: 20,
+                          ),
+                          tooltip: _obscureActual
+                              ? 'Mostrar contraseña'
+                              : 'Ocultar contraseña',
+                          onPressed: () {
+                            setState(() => _obscureActual = !_obscureActual);
+                            WidgetsBinding.instance.addPostFrameCallback(
+                              (_) => _actualPassFocus.requestFocus(),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _nuevaPassCtrl,
+                      focusNode: _nuevaPassFocus,
+                      obscureText: _obscureNueva,
+                      decoration: InputDecoration(
+                        labelText: 'Nueva contraseña',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(Radii.md),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscureNueva
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                            size: 20,
+                          ),
+                          tooltip: _obscureNueva
+                              ? 'Mostrar contraseña'
+                              : 'Ocultar contraseña',
+                          onPressed: () {
+                            setState(() => _obscureNueva = !_obscureNueva);
+                            WidgetsBinding.instance.addPostFrameCallback(
+                              (_) => _nuevaPassFocus.requestFocus(),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _loading
+              ? null
+              : () async {
+                  if (await confirmDiscardChanges(context, hasChanges: _dirty) && context.mounted) {
+                    Navigator.pop(context);
+                  }
+                },
+          child: const Text('Cancelar'),
+        ),
+        ProButton(
+          label: 'Guardar',
+          loading: _loading,
+          compact: true,
+          onPressed: _guardar,
+        ),
+      ],
+    ),
+    );
+  }
+
+  Widget _field(
+    String label,
+    TextEditingController ctrl, {
+    int maxLines = 1,
+    TextInputType? keyboard,
+  }) {
+    return TextField(
+      controller: ctrl,
+      maxLines: maxLines,
+      keyboardType: keyboard,
+      decoration: InputDecoration(
+        labelText: label,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(Radii.md)),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
+      ),
+    );
+  }
+}
+
+// ──────────────────────────────── WIDGETS ────────────────────────────────────
+
+class _ProfileSideCard extends StatelessWidget {
+  final String name;
+  final double rating;
+  final String rol;
+  final int serviciosCount;
+  final int contratacionesCount;
+  final bool isVerified;
+
+  const _ProfileSideCard({
+    required this.name,
+    required this.rating,
+    required this.rol,
+    required this.serviciosCount,
+    required this.contratacionesCount,
+    required this.isVerified,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ProCard(
+      padding: const EdgeInsets.all(28.0),
+      child: Column(
+          children: [
+            Container(
+              height: 120,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(Radii.md),
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [ProColors.accent, ProColors.bg],
+                ),
+              ),
+            ),
+            Transform.translate(
+              offset: const Offset(0, -56),
+              child: Column(
+                children: [
+                  AvatarEditor(
+                    avatarUrl: context.watch<AuthProvider>().usuario?.avatarUrl,
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          name,
+                          style: const TextStyle(
+                            
+                            fontWeight: FontWeight.w800,
+                            color: ProColors.textPrimary,
+                            letterSpacing: -0.5,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      if (isVerified) ...[
+                        const SizedBox(width: 6),
+                        const Tooltip(
+                          message: 'Identidad verificada',
+                          child: Icon(
+                            Icons.verified,
+                            color: ProColors.accent,
+                            size: 24,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '$rol · Santiago, Chile',
+                    style: const TextStyle(
+                      color: ProColors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                      
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: ProColors.accent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(Radii.md),
+                    ),
+                    child: Column(
+                      children: [
+                        const Text(
+                          'CALIFICACIÓN',
+                          style: TextStyle(
+                            color: ProColors.accent,
+                            
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${rating.toStringAsFixed(1)} ★',
+                          style: AppTheme.dataLarge.copyWith(
+                            fontSize: 26,
+                            color: ProColors.accent,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Basada en contrataciones finalizadas',
+                          style: TextStyle(
+                            color: ProColors.accent,
+                            
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _MiniKpiItem(
+                          value: '$serviciosCount',
+                          label: 'Servicios',
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _MiniKpiItem(
+                          value: '$contratacionesCount',
+                          label: 'Contratos',
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+    );
+  }
+}
+
+class _MiniKpiItem extends StatelessWidget {
+  final String value;
+  final String label;
+  const _MiniKpiItem({required this.value, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: ProColors.bg,
+        borderRadius: BorderRadius.circular(Radii.md),
+        border: Border.all(color: ProColors.border),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: AppTheme.dataSmall.copyWith(
+              fontSize: 15,
+              color: ProColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle( color: ProColors.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PersonalInfoCard extends StatelessWidget {
+  final String email;
+  final String firstName;
+  final String lastName;
+  final String phone;
+  final String habilidades;
+  final String? bio;
+  final String rol;
+  final bool isTablet;
+  final VoidCallback onEditarPerfil;
+
+  const _PersonalInfoCard({
+    required this.email,
+    required this.firstName,
+    required this.lastName,
+    required this.phone,
+    required this.habilidades,
+    required this.bio,
+    required this.rol,
+    required this.isTablet,
+    required this.onEditarPerfil,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const titleBlock = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'Información personal',
+          style: TextStyle(
+            
+            fontWeight: FontWeight.w800,
+            color: ProColors.textPrimary,
+          ),
+        ),
+        SizedBox(height: 6),
+        Text(
+          'Datos principales del proveedor.',
+          style: TextStyle(
+            color: ProColors.textSecondary,
+            
+            height: 1.45,
+          ),
+        ),
+      ],
+    );
+    final editButton = ProButton(
+      label: 'Editar perfil',
+      icon: Icons.edit_outlined,
+      compact: true,
+      onPressed: onEditarPerfil,
+    );
+    return ProCard(
+      padding: const EdgeInsets.all(26.0),
+      child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            LayoutBuilder(
+              builder: (context, constraints) {
+                // El botón fijo al lado del título dejaba muy poco ancho
+                // para "Información personal" y la envolvía letra por
+                // letra en móvil; se apila debajo cuando no entra.
+                if (constraints.maxWidth < 340) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      titleBlock,
+                      const SizedBox(height: 14),
+                      editButton,
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: titleBlock),
+                    const SizedBox(width: 12),
+                    editButton,
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 18),
+            GridView(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: isTablet ? 2 : 1,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                mainAxisExtent: 90,
+              ),
+              children: [
+                _InfoGridTile(label: 'Tipo de usuario', value: rol),
+                _InfoGridTile(label: 'Correo', value: email),
+                _InfoGridTile(label: 'Nombre', value: firstName),
+                _InfoGridTile(label: 'Apellido', value: lastName),
+                _InfoGridTile(label: 'Teléfono', value: phone),
+                _InfoGridTile(label: 'Especialidad', value: habilidades),
+              ],
+            ),
+            if (bio != null && bio!.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              const Text(
+                'BIOGRAFÍA / BIO',
+                style: TextStyle(
+                  
+                  fontWeight: FontWeight.w800,
+                  color: ProColors.textMuted,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: ProColors.bg,
+                  borderRadius: BorderRadius.circular(Radii.md),
+                  border: Border.all(color: ProColors.border),
+                ),
+                child: Text(
+                  bio!,
+                  style: const TextStyle(
+                    
+                    color: ProColors.textPrimary,
+                    height: 1.55,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+    );
+  }
+}
+
+class _InfoGridTile extends StatelessWidget {
+  final String label;
+  final String value;
+  const _InfoGridTile({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: ProColors.bg,
+        borderRadius: BorderRadius.circular(Radii.md),
+        border: Border.all(color: ProColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              
+              fontWeight: FontWeight.w800,
+              color: ProColors.textMuted,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                
+                fontWeight: FontWeight.w700,
+                color: ProColors.textPrimary,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActivityMetricsCard extends StatelessWidget {
+  final int serviciosCount;
+  final int contratacionesCount;
+  final int referidosCount;
+  final bool isTablet;
+
+  const _ActivityMetricsCard({
+    required this.serviciosCount,
+    required this.contratacionesCount,
+    required this.referidosCount,
+    required this.isTablet,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    int crossCount = 3;
+    if (Breakpoints.isMobile(context)) {
+      crossCount = 1;
+    } else if (MediaQuery.sizeOf(context).width < Breakpoints.tablet) {
+      crossCount = 2;
+    }
+
+    return ProCard(
+      padding: const EdgeInsets.all(26.0),
+      child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Actividad y métricas',
+              style: TextStyle(
+                
+                fontWeight: FontWeight.w800,
+                color: ProColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Resumen de tu actividad en la plataforma.',
+              style: TextStyle(
+                color: ProColors.textSecondary,
+                
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 18),
+            GridView(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossCount,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                mainAxisExtent: 120,
+              ),
+              children: [
+                _ActivityGridTile(
+                  label: 'Servicios activos',
+                  value: '$serviciosCount',
+                  note: 'Disponibles al público',
+                ),
+                _ActivityGridTile(
+                  label: 'Contratos',
+                  value: '$contratacionesCount',
+                  note: 'Historial total',
+                ),
+                _ActivityGridTile(
+                  label: 'Referidos',
+                  value: '$referidosCount',
+                  note: 'Usuarios invitados',
+                ),
+              ],
+            ),
+          ],
+        ),
+    );
+  }
+}
+
+class _ActivityGridTile extends StatelessWidget {
+  final String label;
+  final String value;
+  final String note;
+  const _ActivityGridTile({
+    required this.label,
+    required this.value,
+    required this.note,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: ProColors.surface,
+        borderRadius: BorderRadius.circular(Radii.md),
+        border: Border.all(color: ProColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              
+              fontWeight: FontWeight.w800,
+              color: ProColors.textMuted,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: AppTheme.dataLarge.copyWith(color: ProColors.textPrimary),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            note,
+            style: const TextStyle( color: ProColors.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SecurityCard extends StatelessWidget {
+  final bool emailVerificado;
+  final bool telefonoActivo;
+  final String docEstado;
+
+  const _SecurityCard({
+    required this.emailVerificado,
+    required this.telefonoActivo,
+    required this.docEstado,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isMobile = Breakpoints.isMobile(context);
+
+    final (identidadText, identidadWarning) = switch (docEstado) {
+      'approved' => ('Verificado', false),
+      'pending' => ('En revisión', true),
+      'rejected' => ('Rechazada', true),
+      _ => ('Pendiente', true),
+    };
+
+    return ProCard(
+      padding: const EdgeInsets.all(26.0),
+      child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Seguridad y verificaciones',
+              style: TextStyle(
+                
+                fontWeight: FontWeight.w800,
+                color: ProColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Estado de tus verificaciones de cuenta y opciones de seguridad.',
+              style: TextStyle(
+                color: ProColors.textSecondary,
+                
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 18),
+            _SecurityItemRow(
+              title: 'Correo verificado',
+              subtitle:
+                  'Tu correo principal está validado para iniciar sesión y recuperar acceso.',
+              badgeLabel: emailVerificado ? 'Verificado' : 'Pendiente',
+              isWarning: !emailVerificado,
+            ),
+            const SizedBox(height: 12),
+            _SecurityItemRow(
+              title: 'Teléfono confirmado',
+              subtitle:
+                  'Tu número está disponible para coordinación con clientes.',
+              badgeLabel: telefonoActivo ? 'Activo' : 'Pendiente',
+              isWarning: !telefonoActivo,
+            ),
+            const SizedBox(height: 12),
+            _SecurityItemRow(
+              title: 'Verificación de identidad',
+              subtitle: 'Genera mayor confianza en la comunidad.',
+              badgeLabel: identidadText,
+              isWarning: identidadWarning,
+            ),
+            const SizedBox(height: 20),
+            Wrap(
+              spacing: Spacing.sm,
+              runSpacing: Spacing.sm,
+              children: [
+                // Sin height fijo: "Verificación en dos pasos" (y "Ver
+                // estado de verificación") envuelven a 2 líneas en móvil --
+                // un alto fijo de 44 cortaba la segunda línea. ProButton ya
+                // trae su propio minimumSize compacto de 44 y crece con el
+                // contenido si hace falta.
+                SizedBox(
+                  width: isMobile ? double.infinity : null,
+                  child: ProButton(
+                    label: 'Verificación en dos pasos',
+                    icon: Icons.security,
+                    isOutline: true,
+                    compact: true,
+                    onPressed: () => context.push('/seguridad/2fa'),
+                  ),
+                ),
+                if (docEstado != 'approved')
+                  SizedBox(
+                    width: isMobile ? double.infinity : null,
+                    child: ProButton(
+                      label: docEstado == 'pending'
+                          ? 'Ver estado de verificación'
+                          : 'Verificar identidad',
+                      icon: Icons.badge_outlined,
+                      isOutline: true,
+                      compact: true,
+                      onPressed: () => context.push('/seguridad/identidad'),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+    );
+  }
+}
+
+class _ReviewsCard extends StatelessWidget {
+  final List<Resena> resenas;
+  final bool loading;
+
+  const _ReviewsCard({required this.resenas, required this.loading});
+
+  @override
+  Widget build(BuildContext context) {
+    return ProCard(
+      padding: const EdgeInsets.all(26.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Reseñas recibidas',
+            style: TextStyle(
+              
+              fontWeight: FontWeight.w800,
+              color: ProColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Lo que tus clientes dijeron sobre tu trabajo.',
+            style: TextStyle(color: ProColors.textSecondary,  height: 1.45),
+          ),
+          const SizedBox(height: 18),
+          if (loading)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else if (resenas.isEmpty)
+            const Text(
+              'Todavía no tienes reseñas.',
+              style: TextStyle(color: ProColors.textSecondary, ),
+            )
+          else
+            ...resenas.map(
+              (r) => Container(
+                margin: const EdgeInsets.only(bottom: Spacing.sm),
+                padding: const EdgeInsets.all(Spacing.md),
+                decoration: BoxDecoration(
+                  color: ProColors.bg,
+                  borderRadius: BorderRadius.circular(Radii.md),
+                  border: Border.all(color: ProColors.border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: List.generate(
+                        5,
+                        (i) => Icon(
+                          i < r.puntuacion ? Icons.star : Icons.star_border,
+                          size: 16,
+                          color: ProColors.amber,
+                        ),
+                      ),
+                    ),
+                    if ((r.comentario ?? '').isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        r.comentario!,
+                        style: const TextStyle(
+                          color: ProColors.textSecondary,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SecurityItemRow extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final String badgeLabel;
+  final bool isWarning;
+
+  const _SecurityItemRow({
+    required this.title,
+    required this.subtitle,
+    required this.badgeLabel,
+    required this.isWarning,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final badge = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: isWarning
+            ? ProColors.amber.withValues(alpha: 0.1)
+            : ProColors.accent.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(Radii.pill),
+      ),
+      child: Text(
+        badgeLabel,
+        style: TextStyle(
+          color: isWarning ? ProColors.amber : ProColors.accent,
+          fontWeight: FontWeight.w700,
+          
+        ),
+      ),
+    );
+    final textBlock = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            
+            color: ProColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: const TextStyle(
+            color: ProColors.textSecondary,
+            
+            height: 1.4,
+          ),
+        ),
+      ],
+    );
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: ProColors.bg,
+        borderRadius: BorderRadius.circular(Radii.md),
+        border: Border.all(color: ProColors.border),
+      ),
+      // Títulos largos ("Verificación de identidad") + el badge fijo al
+      // lado no dejaban ancho suficiente en móvil y envolvían letra por
+      // letra; se apila el badge debajo del texto cuando no entra junto.
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 260) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                textBlock,
+                const SizedBox(height: 10),
+                badge,
+              ],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(child: textBlock),
+              const SizedBox(width: 16),
+              badge,
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SubscriptionCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return ProCard(
+      padding: const EdgeInsets.all(26.0),
+      child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(
+                  Icons.workspace_premium_outlined,
+                  size: 22,
+                  color: ProColors.accent,
+                ),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Suscripción',
+                        style: TextStyle(
+                          
+                          fontWeight: FontWeight.w800,
+                          color: ProColors.textPrimary,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Administra tus planes de facturación para expandir el alcance de tus propuestas.',
+                        style: TextStyle(
+                          color: ProColors.textSecondary,
+                          
+                          height: 1.45,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            ProButton(
+              label: 'Gestionar suscripción',
+              icon: Icons.arrow_forward,
+              onPressed: () => context.push('/planes'),
+            ),
+          ],
+        ),
+    );
+  }
+}
+
+class _CertificacionesCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final certProv = context.watch<CertificacionesProvider>();
+    final certificaciones = certProv.misCertificaciones;
+
+    return ProCard(
+      padding: const EdgeInsets.all(Spacing.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              const icon = Icon(
+                Icons.school_outlined,
+                size: 22,
+                color: ProColors.accent,
+              );
+              const titleBlock = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Títulos y Certificaciones',
+                    style: TextStyle(
+                      
+                      fontWeight: FontWeight.w800,
+                      color: ProColors.textPrimary,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Agrega tus títulos para obtener el Sello Azul de especialista.',
+                    style: TextStyle(
+                      color: ProColors.textSecondary,
+                      
+                      height: 1.45,
+                    ),
+                  ),
+                ],
+              );
+              final addButton = ProButton(
+                label: 'Añadir',
+                icon: Icons.add,
+                isOutline: true,
+                compact: true,
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (_) => const _AddCertificacionDialog(),
+                  );
+                },
+              );
+              // Icono + botón fijo dejaban muy poco ancho para el título en
+              // móvil, envolviéndolo letra por letra; se apila debajo.
+              if (constraints.maxWidth < 380) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        icon,
+                        const SizedBox(width: 10),
+                        Expanded(child: titleBlock),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    addButton,
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  icon,
+                  const SizedBox(width: 10),
+                  Expanded(child: titleBlock),
+                  addButton,
+                ],
+              );
+            },
+          ),
+          if (certProv.isLoading)
+            const Padding(
+              padding: EdgeInsets.only(top: 20),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (certificaciones.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: Spacing.xl),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(Spacing.lg),
+                decoration: BoxDecoration(
+                  color: ProColors.bg,
+                  borderRadius: BorderRadius.circular(Radii.lg),
+                  border: Border.all(color: ProColors.border),
+                ),
+                child: const Text(
+                  'No tienes certificaciones agregadas.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: ProColors.textSecondary, ),
+                ),
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.only(top: Spacing.lg),
+              child: Column(
+                children: certificaciones.map((c) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: Spacing.md),
+                    padding: const EdgeInsets.all(Spacing.md),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: ProColors.border),
+                      borderRadius: BorderRadius.circular(Radii.md),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: const BoxDecoration(
+                            color: ProColors.bg,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.description_outlined,
+                            color: ProColors.accent,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: Spacing.md),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                c.titulo,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: ProColors.textPrimary,
+                                ),
+                              ),
+                              Text(
+                                c.institucion,
+                                style: const TextStyle(
+                                  color: ProColors.textSecondary,
+                                  
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: c.estado == 'approved'
+                                ? ProColors.success.withValues(alpha: 0.1)
+                                : c.estado == 'rejected'
+                                    ? ProColors.danger.withValues(alpha: 0.1)
+                                    : ProColors.accent.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(Radii.md),
+                          ),
+                          child: Text(
+                            c.estado == 'approved'
+                                ? 'Aprobado'
+                                : c.estado == 'rejected'
+                                    ? 'Rechazado'
+                                    : 'Pendiente',
+                            style: TextStyle(
+                              color: c.estado == 'approved'
+                                  ? ProColors.success
+                                  : c.estado == 'rejected'
+                                      ? ProColors.danger
+                                      : ProColors.amber,
+                              
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AddCertificacionDialog extends StatefulWidget {
+  const _AddCertificacionDialog();
+
+  @override
+  State<_AddCertificacionDialog> createState() =>
+      _AddCertificacionDialogState();
+}
+
+class _AddCertificacionDialogState extends State<_AddCertificacionDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _tituloCtrl = TextEditingController();
+  final _instCtrl = TextEditingController();
+  XFile? _selectedFile;
+  bool _isLoading = false;
+
+  Future<void> _pickFile() async {
+    final picker = ImagePicker();
+    final xFile = await picker.pickImage(source: ImageSource.gallery);
+    if (xFile != null) {
+      setState(() => _selectedFile = xFile);
+    }
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_selectedFile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por favor, selecciona una imagen del documento.'),
+          backgroundColor: ProColors.danger,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final certProv = context.read<CertificacionesProvider>();
+    final cert = await certProv.agregarCertificacion(
+      _tituloCtrl.text.trim(),
+      _instCtrl.text.trim(),
+      _selectedFile!.path,
+    );
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    if (cert != null) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Certificación subida correctamente.'),
+          backgroundColor: ProColors.success,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(certProv.error ?? 'Error al subir.'),
+          backgroundColor: ProColors.danger,
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _tituloCtrl.dispose();
+    _instCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maxDialogWidth = MediaQuery.sizeOf(context).width - 64;
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
+      title: const Text(
+        'Añadir Certificación',
+        style: TextStyle(fontWeight: FontWeight.bold),
+      ),
+      content: SizedBox(
+        width: maxDialogWidth < 400 ? maxDialogWidth : 400,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _tituloCtrl,
+                decoration: InputDecoration(
+                  labelText: 'Título o especialidad (Ej: Gasfíter SEC)',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(Radii.md),
+                  ),
+                ),
+                validator: (v) =>
+                    v == null || v.isEmpty ? 'Requerido' : null,
+              ),
+              const SizedBox(height: Spacing.md),
+              TextFormField(
+                controller: _instCtrl,
+                decoration: InputDecoration(
+                  labelText: 'Institución emisora (Ej: SEC)',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(Radii.md),
+                  ),
+                ),
+                validator: (v) =>
+                    v == null || v.isEmpty ? 'Requerido' : null,
+              ),
+              const SizedBox(height: Spacing.md),
+              InkWell(
+                onTap: _pickFile,
+                borderRadius: BorderRadius.circular(Radii.md),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(Spacing.xl),
+                  decoration: BoxDecoration(
+                    color: _selectedFile == null
+                        ? ProColors.bg
+                        : ProColors.accent.withValues(alpha: 0.15),
+                    border: Border.all(
+                      color: _selectedFile == null
+                          ? ProColors.border
+                          : ProColors.accent,
+                      style: BorderStyle.solid,
+                    ),
+                    borderRadius: BorderRadius.circular(Radii.md),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        _selectedFile == null
+                            ? Icons.upload_file
+                            : Icons.check_circle,
+                        color: _selectedFile == null
+                            ? ProColors.textSecondary
+                            : ProColors.accent,
+                        size: 32,
+                      ),
+                      const SizedBox(height: Spacing.sm),
+                      Text(
+                        _selectedFile == null
+                            ? 'Seleccionar foto del certificado'
+                            : _selectedFile!.name,
+                        style: TextStyle(
+                          color: _selectedFile == null
+                              ? ProColors.textSecondary
+                              : ProColors.accent,
+                          fontWeight: FontWeight.w600,
+                          
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isLoading ? null : () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        ProButton(
+          label: 'Subir y Guardar',
+          loading: _isLoading,
+          compact: true,
+          onPressed: _submit,
+        ),
+      ],
+    );
+  }
+}

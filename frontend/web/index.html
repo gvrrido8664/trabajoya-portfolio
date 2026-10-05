@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es-CL">
+<head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+  -->
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  
+  <!-- Forzar a que el navegador siempre busque la versión más nueva (evitar caché agresiva) -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+
+  <meta name="description" content="TrabajoYa — Marketplace de servicios en Chile">
+  <meta name="color-scheme" content="only light">
+  <style>
+    :root { color-scheme: only light; }
+    canvas { forced-color-adjust: none; }
+  </style>
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="TrabajoYa">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon-brand.png"/>
+
+  <title>TrabajoYa | Servicios locales</title>
+  <link rel="canonical" href="https://somostrabajoya.cl/">
+  <link rel="manifest" href="manifest.json">
+
+  <!-- Open Graph / Social Media -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://somostrabajoya.cl/">
+  <meta property="og:title" content="TrabajoYa | Encuentra a los mejores expertos">
+  <meta property="og:description" content="Conecta con profesionales de confianza para servicios de plomería, electricidad, limpieza y más en todo Chile.">
+  <meta property="og:image" content="https://somostrabajoya.cl/icons/Icon-512.png">
+
+  <!-- Twitter -->
+  <meta property="twitter:card" content="summary_large_image">
+  <meta property="twitter:url" content="https://somostrabajoya.cl/">
+  <meta property="twitter:title" content="TrabajoYa | Encuentra a los mejores expertos">
+  <meta property="twitter:description" content="Conecta con profesionales de confianza para servicios de plomería, electricidad, limpieza y más en todo Chile.">
+  <meta property="twitter:image" content="https://somostrabajoya.cl/icons/Icon-512.png">
+
+  <!-- Schema.org JSON-LD -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "TrabajoYa",
+    "url": "https://somostrabajoya.cl/",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": "https://somostrabajoya.cl/buscar?q={search_term_string}",
+      "query-input": "required name=search_term_string"
+    }
+  }
+  </script>
+
+  <!-- Preloader CSS -->
+  <style>
+    body {
+      background-color: #F8FAFC;
+      margin: 0;
+      padding: 0;
+    }
+    .preloader {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background-color: #F8FAFC;
+      z-index: 9999;
+      font-family: 'Inter', sans-serif;
+      transition: opacity 0.5s ease-out;
+    }
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid rgba(16, 42, 71, 0.18);
+      border-left-color: #F05A16;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .preloader-text {
+      margin-top: 20px;
+      color: #041E2A;
+      font-weight: 600;
+      font-size: 1.1rem;
+    }
+  </style>
+</head>
+<body>
+  <!-- Preloader UI -->
+  <div class="preloader" id="app-preloader">
+    <div class="spinner"></div>
+    <div class="preloader-text">Cargando TrabajoYa...</div>
+  </div>
+
+  <!--
+    You can customize the "flutter_bootstrap.js" script.
+    This is useful to provide a custom configuration to the Flutter loader
+    or to give the user feedback during the initialization process.
+
+    For more details:
+    * https://docs.flutter.dev/platform-integration/web/initialization
+  -->
+  <script src="flutter_bootstrap.js"></script>
+  <script>
+    window.addEventListener('flutter-first-frame', function() {
+      var preloader = document.getElementById('app-preloader');
+      if (preloader) {
+        preloader.style.opacity = '0';
+        setTimeout(function() {
+          preloader.remove();
+        }, 500);
+      }
+    });
+  </script>
+</body>
+</html>

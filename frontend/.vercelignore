@@ -1,0 +1,17 @@
+lib/
+test/
+android/
+ios/
+linux/
+macos/
+windows/
+/assets/
+docs/
+tools/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.yaml
+pubspec.lock
+*.dart
+*.md

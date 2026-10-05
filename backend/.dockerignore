@@ -1,0 +1,15 @@
+.venv
+venv
+venv312
+__pycache__
+.pytest_cache
+.git
+.github
+.vscode
+docs
+lib
+*.pyc
+.env
+.env.local
+*.pem
+.DS_Store
