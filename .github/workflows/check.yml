@@ -1,5 +1,5 @@
 name: API offline checks
-on: [push, pull_request, workflow_dispatch]
+on: [workflow_dispatch]
 permissions:
   contents: read
 jobs:
@@ -15,3 +15,17 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - run: python demo_check.py
+  flutter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: git clone --depth 1 --branch 3.47.6 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+      - run: echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - run: |
+          cp .env.example .env.development
+          cp .env.example .env.production
+          flutter pub get
+          flutter analyze
+          flutter test
+          flutter build web
+        working-directory: frontend

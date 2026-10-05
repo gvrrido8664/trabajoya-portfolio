@@ -517,7 +517,7 @@ class _HeroCopy extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 500),
           child: Text(
             'Publica lo que necesitas y compara propuestas de profesionales '
-            'de tu zona con precios, perfiles y reseñas reales.',
+            'de tu zona con precios, perfiles y reseñas.',
             style: theme.textTheme.bodyLarge?.copyWith(
               color: AppColors.inkSoft,
               height: 1.6,
@@ -726,11 +726,11 @@ class _TrustStrip extends StatelessWidget {
           children: const [
             _TrustStripItem(
               icon: Icon(Icons.verified_user_outlined, color: AppColors.rust),
-              label: 'Identidad verificada',
+              label: 'Perfiles de profesionales',
             ),
             _TrustStripItem(
               icon: Icon(Icons.lock_outline, color: AppColors.rust),
-              label: 'Pago protegido',
+              label: 'Propuestas claras',
             ),
             _TrustStripItem(
               icon: _TrustGlyph(kind: _TrustGlyphKind.compare),

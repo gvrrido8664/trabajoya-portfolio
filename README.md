@@ -5,10 +5,12 @@ Proyecto personal de **Ignacio Garrido**, Ingeniero en Informática titulado. De
 Código fuente de backend FastAPI/PostgreSQL/PostGIS y frontend Flutter/Dart, reunidos en `backend/` y `frontend/`. Incluye usuarios, JWT, servicios, categorías, solicitudes, propuestas, contrataciones, reseñas y chat WebSocket.
 
 ## Estado de esta entrega
-Comprobados instalación de dependencias Python, importación de la API, `/health`, OpenAPI (99 rutas), validación y protección del destino de la demo. **La demo completa todavía no fue ejecutada:** esta máquina carece de Docker y Flutter. Por ello, no se presenta como marketplace operativo.
+Comprobados `/health`, OpenAPI (99 rutas), **40 pruebas backend** con PostgreSQL 16/PostGIS 3.6, **37 pruebas Flutter**, análisis estático sin avisos y build web. En navegador se verificaron inicio de sesión, catálogo y detalle con cuentas y servicio sintéticos. Las integraciones de pagos, email y proveedores externos no se validaron.
+
+![Cliente con datos sintéticos](docs/cliente-demo.jpg)
 
 ## Demo preparada con datos sintéticos
-Requiere Docker Compose y Flutter, una vez disponibles. Desde `backend/`:
+Requiere Docker Compose y Flutter. La revisión usó PostgreSQL/PostGIS local nativo, sin Docker; el contenedor no se ejecutó. Desde `backend/`:
 ```powershell
 Copy-Item .env.example .env
 ```
@@ -33,12 +35,12 @@ cd backend
 python -m pip install -r requirements.txt
 python demo_check.py
 ```
-Las pruebas de `tests/` requieren PostgreSQL/PostGIS local y `TEST_DATABASE_URL` con base trabajoya_demo; nunca reutilizan automáticamente DATABASE_URL. No se ejecutaron esas pruebas de integración en esta revisión.
+Las pruebas de `tests/` requieren PostgreSQL/PostGIS local y `TEST_DATABASE_URL` con base trabajoya_demo; nunca reutilizan automáticamente DATABASE_URL. Ejecuta `python -m pip install -r requirements-dev.txt` y `python -m pytest -q`. Resultado: 40 aprobadas. Se sustituyeron seis pruebas obsoletas de banca/payout por una comprobación de que sus rutas retiradas devuelven 404; no se agregó ni verificó un flujo de transferencias.
 
 ## Pagos y límites
 El código contiene MercadoPago para suscripciones/conexión de proveedores, Fintoc y Webpay Plus. Su presencia acredita integración de código, **no cobros operativos, escrow, fondos custodiados, usuarios o ingresos**. Esta demo se recorre sin pagos, email, geocoding ni proveedores externos. No se validaron esas integraciones y necesitan revisión específica antes de usarlas.
 
-## Antes de publicar
+## Configuración y credenciales
 Se encontraron URLs con credenciales embebidas en scripts auxiliares originales; se retiraron de esta entrega. Cambia las credenciales originales en el proveedor. Esta copia excluye .git, entornos, bases, claves privadas y configuración de producción; no convierte el historial original en seguro. Mantén todos los secretos fuera del frontend. Ver `THIRD_PARTY.md` y el informe general de preparación.
 
-English: Flutter/FastAPI service marketplace source with a prepared isolated synthetic-data environment. Only offline API checks are verified; DB/frontend and payment integration remain unverified.
+English: Flutter/FastAPI service marketplace source with a prepared isolated synthetic-data environment. Verified 40 PostgreSQL/PostGIS backend tests, 37 Flutter tests, web build and synthetic login/catalog flow. External payment integrations remain unverified.
